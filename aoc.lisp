@@ -5,7 +5,7 @@
   "Read a file returning lines as a list"
   (with-open-file (stream filepath)
     (loop for line = (read-line stream nil)
-	  while line collect line)))
+       while line collect line)))
 
 (defun str->num (s)
   "Parse a string as an integer"
@@ -161,7 +161,7 @@
     (power-consumption gamma-rate epsilon-rate)))
 
 ;; -----------------------------------------------------------------------------
-;; Day 3 -- part 3
+;; Day 3 -- part 2
 
 (defun has-in-pos-p (lst n idx)
   (= (nth idx lst) n))
@@ -198,3 +198,73 @@
 	 (oxygen (oxygen-generator-rating binary))
 	 (co2 (co2-scrubber-rating binary)))
     (* oxygen co2)))
+
+;; -----------------------------------------------------------------------------
+;; Day 4 -- part 1
+
+(defun split (str delim)
+  (let ((pos (position delim str :test #'string-equal)))
+    (if pos
+	(let ((item (subseq str 0 pos))
+	      (str (subseq str (1+ pos))))
+	  (if str
+	      (cons item (split str delim))
+	      item))
+	(cons str nil))))
+
+(defun get-row (n bingo-card)
+  (nth n bingo-card))
+
+(defun get-col (n bingo-card)
+  (nth n (transpose bingo-card)))
+
+(defun is-empty-str-p (s)
+  (equal s ""))
+
+(defun read-row (line delim)
+  (mapcar
+   #'(lambda (row) (mapcar #'str->num (remove-if #'is-empty-str-p (split row delim))))
+   line))
+
+(defun read-bingo-system (filepath)
+  (let* ((contents (remove-if #'is-empty-str-p (read-file filepath)))
+	 (draws (mapcar #'str->num (split (first contents) ",")))
+	 (cards (mapcar #'(lambda (line) (read-row line " "))
+			(loop for i from 0 below (length (rest contents)) by 5
+			      collect (subseq (rest contents) i (+ i 5))))))
+    (values draws cards)))
+
+(defun is-seq-filled-p (draws seq)
+  (eq nil (set-difference seq draws)))
+
+(defun is-winner-p (draws card)
+  (dotimes (idx (length card))
+    (when (or (is-seq-filled-p draws (get-col idx card))
+	      (is-seq-filled-p draws (get-row idx card)))
+      (return-from is-winner-p t))))
+
+(defun get-missing (drawn card)
+  (remove-if #'null (mapcar #'(lambda (row) (set-difference row drawn)) card)))
+
+(defun flatten (lst)
+  (if (null lst)
+      lst
+      (if (atom (first lst))
+	  (cons (first lst) (flatten (rest lst)))
+	  (append (flatten (first lst)) (flatten (rest lst))))))
+
+(defun count-missing (drawn card)
+  (length (flatten (get-missing drawn card))))
+
+(defun board-score (drawn card)
+  (let ((s (apply #'+ (flatten (get-missing drawn card)))))
+    (* (first (last drawn)) s)))
+
+(defun main-day-4-1 ()
+  (let* ((filepath "./day4/input"))
+    (multiple-value-bind (draws cards) (read-bingo-system filepath)
+      (loop for draw in draws collecting draw into drawn
+	    when (position t (mapcar #'(lambda (c) (is-winner-p drawn c)) cards))
+	      do (return (board-score
+		   drawn
+		   (nth (position t (mapcar #'(lambda (c) (is-winner-p drawn c)) cards)) cards)))))))
